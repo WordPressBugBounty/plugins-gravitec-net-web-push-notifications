@@ -150,33 +150,38 @@ class Gravitecnet_Admin {
 		}
 		add_action( 'add_meta_boxes', array($this, 'create_woo_product_notification_box'), 10);
 		add_action('wp_footer', array($this, 'add_gravitec_tag'), 100);
+	}
 
-		$args = array( 'public' => true, '_builtin' => false );
-
-		$output = 'names';
-		$operator = 'and';
-		$post_types = get_post_types($args, $output, $operator);
-		foreach ($post_types  as $post_type) {
+	public function on_admin_init() {
+		try {
 			add_meta_box(
 				'gravitec_push_on_post',
 				'Gravitec Push Notifications',
 				array(__CLASS__, 'gravitec_push_on_post_html_view'),
-				$post_type,
+				'post',
 				'side',
 				'high'
 			);
-		}
-	}
-
-	public function on_admin_init() {
-		add_meta_box(
-			'gravitec_push_on_post',
-			'Gravitec Push Notifications',
-			array(__CLASS__, 'gravitec_push_on_post_html_view'),
-			'post',
-			'side',
-			'high'
-		);
+	
+			$args = array( 'public' => true, '_builtin' => false );
+	
+			$output = 'names';
+			$operator = 'and';
+			$post_types = get_post_types($args, $output, $operator);
+			foreach ($post_types  as $post_type) {
+				add_meta_box(
+					'gravitec_push_on_post',
+					'Gravitec Push Notifications',
+					array(__CLASS__, 'gravitec_push_on_post_html_view'),
+					$post_type,
+					'side',
+					'high'
+				);
+			}
+		} catch (Exception $e) {
+			error_log("Error adding meta boxes on admin init");
+            return;
+        }
 	}
 
 	public function add_gravitecnet_admin_page_to_admin_menu() {
