@@ -118,6 +118,8 @@ class Gravitecnet_Admin {
 		$this->security    = $security;
 
 		$this->register_actions();
+
+		add_action('admin_init', array($this, 'on_admin_init'));
 	}
 
 	public function register_actions() {
@@ -149,15 +151,6 @@ class Gravitecnet_Admin {
 		add_action( 'add_meta_boxes', array($this, 'create_woo_product_notification_box'), 10);
 		add_action('wp_footer', array($this, 'add_gravitec_tag'), 100);
 
-		add_meta_box(
-			'gravitec_push_on_post',
-			'Gravitec Push Notifications',
-			array(__CLASS__, 'gravitec_push_on_post_html_view'),
-			'post',
-			'side',
-			'high'
-		);
-
 		$args = array( 'public' => true, '_builtin' => false );
 
 		$output = 'names';
@@ -173,6 +166,17 @@ class Gravitecnet_Admin {
 				'high'
 			);
 		}
+	}
+
+	public function on_admin_init() {
+		add_meta_box(
+			'gravitec_push_on_post',
+			'Gravitec Push Notifications',
+			array(__CLASS__, 'gravitec_push_on_post_html_view'),
+			'post',
+			'side',
+			'high'
+		);
 	}
 
 	public function add_gravitecnet_admin_page_to_admin_menu() {
