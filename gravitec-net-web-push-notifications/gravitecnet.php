@@ -16,7 +16,7 @@
  * Plugin Name:       Gravitec.net - Web Push Notifications
  * Plugin URI:        https://gravitec.net/
  * Description:       Automated web push notifications for newsmakers and publishers
- * Version:           2.9.9
+ * Version:           2.9.10
  * Author:            Gravitec.net
  * Author URI:        https://push.gravitec.net/
  * License:           GPL-2.0+
@@ -35,7 +35,7 @@ if ( ! defined( 'WPINC' ) ) {
  * Start at version 1.0.0 and use SemVer - https://semver.org
  * Rename this for your plugin and update it as you release new versions.
  */
-define( 'GRAVITECNET_VERSION', '2.9.9' );
+define( 'GRAVITECNET_VERSION', '2.9.10' );
 
 /**
  * For Gravitec developers: replace cdn domain to test domain.
