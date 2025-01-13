@@ -4,7 +4,7 @@ Donate link: https://gravitec.net
 Tags: push notifications, push notification, web push notifications, chrome push, web push, automation, drip feed, dreep push, push onboarding, push automation, push for media, chrome, firefox, safari, push, safari push, firefox push, notification, notifications,  notify, mavericks, android, android push, android notifications, android notification, mobile notification, mobile notifications, mobile, desktop notification, desktop notifications, gcm, push messages, gravitec, gravitec.net
 Requires at least: 3.8
 Tested up to: 6.7.1
-Stable tag: 2.9.10
+Stable tag: 2.9.11
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -166,3 +166,5 @@ Feel free to review, study, and adapt the code as needed.
 - Minor improvements
 = 2.9.10 =
 - Fixed post editor bug
+= 2.9.11 =
+- Minor improvements

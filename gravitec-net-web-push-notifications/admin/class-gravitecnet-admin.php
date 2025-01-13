@@ -429,13 +429,18 @@ class Gravitecnet_Admin {
 		
 		$response = self::send_gravitecnet_api($gravitecnet_push_url, $request_body);
 		
-		if (is_null($response)) {
+			if (is_null($response)) {
 				$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a problem sending your push notification.</em></p>');
 				return;
         	}
 			
 			if ($gravitecnet_settings->get_status_after_sending() !== 'true') {return;}
 			
+			if (is_wp_error($response)) {
+				$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>Something went wrong</em></p>');
+				return;
+			}
+
 			if (isset($response['body'])) {
 				$response_body = json_decode($response['body'], true);
 			}
