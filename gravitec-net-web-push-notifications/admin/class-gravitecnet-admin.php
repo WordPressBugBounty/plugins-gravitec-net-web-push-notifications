@@ -121,32 +121,68 @@ class Gravitecnet_Admin {
 	}
 
 	public function register_actions() {
-		if ( $this->security->can_modify_plugin_settings() ) {
-			add_action( 'admin_menu', array( $this, 'add_gravitecnet_admin_page_to_admin_menu' ) );
-		}
-		add_action('admin_init', array($this, 'add_gravitecnet_post_options'));
-		add_action('transition_post_status', array($this, 'on_publish_post'), 10, 3);
-		
-		if( class_exists( 'woocommerce' ) ){
-			$gravitecnet_settings = new Gravitecnet_Settings();
-			if ($gravitecnet_settings->get_enable_abandoned_cart() === 'true') {
-				add_action('wp_footer', array($this, 'store_endpoint_in_cookies'), 100);
-				add_action( 'woocommerce_add_to_cart', array($this, 'store_woo_cart_info'), 100, 0 );
-				add_action( 'woocommerce_cart_item_removed', array($this, 'store_woo_cart_info'), 100, 0 );
-				add_action( 'woocommerce_cart_item_restored', array($this, 'store_woo_cart_info'), 100, 0 );
-				add_action( 'woocommerce_after_calculate_totals', array($this, 'store_woo_cart_info'), 100, 0 );
-				add_action( 'woocommerce_thankyou', array($this, 'store_woo_cart_info'), 100, 0 );
-				
-				if (!$gravitecnet_settings->get_app_key() || !$gravitecnet_settings->get_app_secret()) return;
-				
-				add_filter( 'cron_schedules', array($this, 'user_define_recurrence'));
-				add_action( 'wp', array($this, 'cron_job'));
-				add_action( 'gravitecnet_abandoned_cart', array($this, 'send_abandoned_notification'));
+		try {
+			if ( $this->security->can_modify_plugin_settings() ) {
+				add_action( 'admin_menu', array( $this, 'add_gravitecnet_admin_page_to_admin_menu' ) );
 			}
-			add_action( 'transition_post_status', array($this, 'send_woo_product_push'), 100, 3);
+			add_action('admin_init', array($this, 'add_gravitecnet_post_options'));
+			add_action('save_post', array(__CLASS__, 'on_save_post'), 1, 3);
+			add_action('transition_post_status', array(__CLASS__, 'on_publish_post'), 10, 3);
+			
+			if( class_exists( 'woocommerce' ) ){
+				$gravitecnet_settings = new Gravitecnet_Settings();
+				if ($gravitecnet_settings->get_enable_abandoned_cart() === 'true') {
+					add_action('wp_footer', array($this, 'store_endpoint_in_cookies'), 100);
+					add_action( 'woocommerce_add_to_cart', array($this, 'store_woo_cart_info'), 100, 0 );
+					add_action( 'woocommerce_cart_item_removed', array($this, 'store_woo_cart_info'), 100, 0 );
+					add_action( 'woocommerce_cart_item_restored', array($this, 'store_woo_cart_info'), 100, 0 );
+					add_action( 'woocommerce_after_calculate_totals', array($this, 'store_woo_cart_info'), 100, 0 );
+					add_action( 'woocommerce_thankyou', array($this, 'store_woo_cart_info'), 100, 0 );
+					
+					if (!$gravitecnet_settings->get_app_key() || !$gravitecnet_settings->get_app_secret()) return;
+					
+					add_filter( 'cron_schedules', array($this, 'user_define_recurrence'));
+					add_action( 'wp', array($this, 'cron_job'));
+					add_action( 'gravitecnet_abandoned_cart', array($this, 'send_abandoned_notification'));
+				}
+				add_action( 'transition_post_status', array($this, 'send_woo_product_push'), 100, 3);
+				add_action( 'add_meta_boxes', array($this, 'create_woo_product_notification_box'), 10);
+			}
+			
+			add_action('wp_footer', array($this, 'add_gravitec_tag'), 100);
+			add_action('add_meta_boxes', array(__CLASS__, 'on_add_meta_boxes'));
+		} catch (Exception $e) {
+			error_log($e->getMessage(), 3, __DIR__ . '/error.log');
+			return;
 		}
-		add_action( 'add_meta_boxes', array($this, 'create_woo_product_notification_box'), 10);
-		add_action('wp_footer', array($this, 'add_gravitec_tag'), 100);
+	}
+
+	public static function on_add_meta_boxes() {
+		add_meta_box(
+			'gravitec_push_on_post',
+			'Gravitec Push Notifications',
+			array(__CLASS__, 'gravitec_push_on_post_html_view'),
+			'post',
+			'side',
+			'high'
+		);
+
+		// Add Gravitec Push Notifications meta box to all custom post types
+		$args = array( 'public' => true, '_builtin' => false );
+	
+		$output = 'names';
+		$operator = 'and';
+		$post_types = get_post_types($args, $output, $operator);
+		foreach ($post_types as $post_type) {
+			add_meta_box(
+				'gravitec_push_on_post',
+				'Gravitec Push Notifications',
+				array(__CLASS__, 'gravitec_push_on_post_html_view'),
+				$post_type,
+				'side',
+				'high'
+			);
+		}
 	}
 
 	public function add_gravitecnet_admin_page_to_admin_menu() {
@@ -429,18 +465,13 @@ class Gravitecnet_Admin {
 		
 		$response = self::send_gravitecnet_api($gravitecnet_push_url, $request_body);
 		
-			if (is_null($response)) {
+		if (is_null($response)) {
 				$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a problem sending your push notification.</em></p>');
 				return;
         	}
 			
 			if ($gravitecnet_settings->get_status_after_sending() !== 'true') {return;}
 			
-			if (is_wp_error($response)) {
-				$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>Something went wrong</em></p>');
-				return;
-			}
-
 			if (isset($response['body'])) {
 				$response_body = json_decode($response['body'], true);
 			}
@@ -636,23 +667,110 @@ class Gravitecnet_Admin {
 		}
     }
 	
-	public function on_publish_post ($new_status, $old_status, $post) {
-		if(empty( $post ) || wp_is_post_revision($post) || $new_status !== 'publish') {return;}
-		if ($new_status === $old_status || $old_status === 'trash') {return;}
-		if ($post->post_type !== 'post') return;
+	public static function on_publish_post ($new_status, $old_status, $post) {
+		if(
+			empty( $post ) || 
+			$new_status !== 'publish' ||
+			$post->post_type === 'wdslp-wds-log' ||
+			$old_status === 'trash' ||
+			$post->post_type !== 'post'
+		) {return;}
+
 		$gravitecnet_settings = new Gravitecnet_Settings();
 		if (!$gravitecnet_settings->get_app_key() || !$gravitecnet_settings->get_app_secret()) {return;}
-		if ($gravitecnet_settings->get_automatically_send_on_post() != 'true') {return;}
-		if ($old_status === 'future' && $new_status === 'publish') {
-			$this->send_gravitec_notification_on_post($post);
-			return;
-		}
-		add_action('rest_after_insert_post', array($this, 'send_gravitec_notification_on_post'), 10, 1);
+
+		self::send_gravitec_notification_on_post($post);
 	}
 	
-	public function send_gravitec_notification_on_post ($post) {
+    public static function gravitec_push_on_post_html_view($post) {
+		error_log("\n[".date('Y-m-d H:i:s')."]: gravitec_push_on_post_html_view initiated", 3, __DIR__ . '/error.log');
+		$post_type = $post->post_type;
+
+		$gravitecnet_settings = new Gravitecnet_Settings();
+
+		if ((get_post_meta($post->ID, 'send_gravitec_push', true) === '1')) {
+            $meta_box_gravitec_send_push = true;
+        } else {
+			$meta_box_gravitec_send_push = $gravitecnet_settings->get_automatically_send_on_post() && 
+				$post->post_type === 'post' && 
+				!in_array($post->post_status, array('publish', 'private', 'trash', 'inherit'), true);
+		}
+
+		?>
+
+		<input type="hidden" name="gravitec_meta_box_implemented" value="true"></input>
+		<div id="gravitec_send_checkbox">
+			<label>
+			<input type="checkbox" id="send_gravitec_push" name="send_gravitec_push" value="true" <?php if ($meta_box_gravitec_send_push) {
+					echo 'checked';
+				} ?>></input>
+
+			<?php if ($post->post_status === 'publish') {
+				echo esc_attr('Send a push notification on '.$post_type.' update');
+			} else {
+				echo esc_attr('Send a push notification on '.$post_type.' publish');
+
+			} ?>
+			</label>
+		</div>
+
+		<?php
+    }
+
+    public static function on_save_post($post_id, $post, $updated) {
+        if ($post->post_type === 'wdslp-wds-log') {
+            return;
+        }
+
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            return $post_id;
+        }
+
+        if (array_key_exists('gravitec_meta_box_implemented', $_POST)) {
+            update_post_meta($post_id, 'gravitec_meta_box_implemented', true);
+        } else {
+			error_log("\n[".date('Y-m-d H:i:s')."]: gravitec_meta_box_implemented saved as false", 3, __DIR__ . '/error.log');
+			update_post_meta($post_id, 'gravitec_meta_box_implemented', false);
+		}
+
+        if (array_key_exists('send_gravitec_push', $_POST)) {
+            update_post_meta($post_id, 'send_gravitec_push', true);
+        } else {
+			error_log("\n[".date('Y-m-d H:i:s')."]: send_gravitec_push saved as false", 3, __DIR__ . '/error.log');
+			update_post_meta($post_id, 'send_gravitec_push', false);
+		}
+	}
+	
+	public static function send_gravitec_notification_on_post ($post) {
 		try {
+			$was_posted = !empty($_POST);
+
 			$gravitecnet_settings = new Gravitecnet_Settings();
+
+			$gravitec_meta_box_present = $was_posted && isset($_POST['gravitec_meta_box_implemented']) && $_POST['gravitec_meta_box_implemented'] === 'true';
+
+			$gravitec_send_notification_checked = $was_posted && isset($_POST['send_gravitec_push']) && $_POST['send_gravitec_push'] === 'true';
+
+			$was_gravitec_meta_box_present = get_post_meta($post->ID, 'gravitec_meta_box_implemented', true) === '1';
+
+			$was_gravitec_send_notification_checked = get_post_meta($post->ID, 'send_gravitec_push', true) === '1';
+
+			$send_notification = ($was_posted && $gravitec_send_notification_checked) ||
+                                    (!$was_posted && $was_gravitec_send_notification_checked);
+
+			if (!$send_notification) {return;}
+
+			update_post_meta($post->ID, 'gravitec_meta_box_implemented', false);
+			update_post_meta($post->ID, 'send_gravitec_push', false);
+
+			if ($was_posted) {
+				if (array_key_exists('gravitec_meta_box_implemented', $_POST)) {
+					unset($_POST['gravitec_meta_box_implemented']);
+				}
+				if (array_key_exists('send_gravitec_push', $_POST)) {
+					unset($_POST['send_gravitec_push']);
+				}
+			}
 			
 			$push_redirect_url = get_permalink( $post->ID );
 			
@@ -681,12 +799,12 @@ class Gravitecnet_Admin {
 			$response = self::send_gravitecnet_api($gravitecnet_push_url, $request_body);
 			
 			if (is_null($response)) {
-				$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a problem sending your push notification.</em></p>');
-				$this->remove_gravitec_push_on_post_action();
+				self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a problem sending your push notification.</em></p>');
+				self::remove_gravitec_push_on_post_action();
 				return;
         	}
 			
-			if ($gravitecnet_settings->get_status_after_sending() !== 'true') {$this->remove_gravitec_push_on_post_action(); return;}
+			if ($gravitecnet_settings->get_status_after_sending() !== 'true') {self::remove_gravitec_push_on_post_action(); return;}
 			
 			if (isset($response['body'])) {
 				$response_body = json_decode($response['body'], true);
@@ -704,24 +822,24 @@ class Gravitecnet_Admin {
 			if ($status !== 200) {
 				if ($status !== 0) {
 					if ($status === 403) {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['error_message'] . '</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['error_message'] . '</em></p>');
 					}
 					else if ($status === 410) {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['description'] . '</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['description'] . '</em></p>');
 					}
 					else if ($status === 422) {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['errorDescription'] . '</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['errorDescription'] . '</em></p>');
 					}
 					else if ($status === 500) {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] Internal server error</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] Internal server error</em></p>');
 					}
 					else {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a '.$status.' error sending your notification.</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a '.$status.' error sending your notification.</em></p>');
 					}
 				} 
 				else {
 					// A 0 HTTP status code means the connection couldn't be established
-					$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was an error establishing a network connection. Please make sure outgoing network connections from cURL are allowed.</em></p>');
+					self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was an error establishing a network connection. Please make sure outgoing network connections from cURL are allowed.</em></p>');
 				}
 			} else {
 				if (!empty($response)) {
@@ -732,7 +850,7 @@ class Gravitecnet_Admin {
 						if (isset($response_body['id'])) {
 							$notification_id = $response_body['id'];
 						} else {
-							$this->remove_gravitec_push_on_post_action();
+							self::remove_gravitec_push_on_post_action();
 							return;
 						}
 					}
@@ -752,24 +870,24 @@ class Gravitecnet_Admin {
 					
 					$status_api_response = wp_remote_get( $push_status_api_url, $status_api_request_body );
 					
-					if (!isset($status_api_response['body'])) {$this->remove_gravitec_push_on_post_action(); return;}
+					if (!isset($status_api_response['body'])) {self::remove_gravitec_push_on_post_action(); return;}
 					
 					$status_api_response_body = json_decode($status_api_response['body'], true);
 					
-					if (!isset($status_api_response_body['send'])) {$this->remove_gravitec_push_on_post_action(); return;}
+					if (!isset($status_api_response_body['send'])) {self::remove_gravitec_push_on_post_action(); return;}
 					
 					$recipient_count = $status_api_response_body['send'];
 					
 					update_post_meta($post->ID, 'recipients', $recipient_count);
 					
 					if ($recipient_count !== 0) {
-						$this->set_gravitec_success_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> Successfully sent'.' a notification to '.$recipient_count.' recipients.'.'</em></p>');
+						self::set_gravitec_success_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> Successfully sent'.' a notification to '.$recipient_count.' recipients.'.'</em></p>');
 					} else {
-						$this->set_gravitec_success_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>There were no recipients. You likely have no subscribers.</em></p>');
+						self::set_gravitec_success_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>There were no recipients. You likely have no subscribers.</em></p>');
 					}
 				}
 			}
-			$this->remove_gravitec_push_on_post_action();
+			self::remove_gravitec_push_on_post_action();
 			return;
 		} catch (Exception $e) {
 			remove_action('rest_after_insert_post', array($this, 'send_gravitec_notification_on_post'));
@@ -818,7 +936,7 @@ class Gravitecnet_Admin {
 	}
 	
 	public function remove_gravitec_push_on_post_action () {
-		remove_action('rest_after_insert_post', array($this, 'send_gravitec_notification_on_post'));
+		remove_action('rest_after_insert_post', array(__CLASS__, 'send_gravitec_notification_on_post'));
 		return;
 	}
 
