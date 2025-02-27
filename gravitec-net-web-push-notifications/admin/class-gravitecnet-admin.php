@@ -546,9 +546,9 @@ class Gravitecnet_Admin {
 					update_post_meta($post->ID, 'recipients', $recipient_count);
 					
 					if ($recipient_count !== 0) {
-						$this->set_gravitec_success_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> Successfully sent'.' a notification to '.$recipient_count.' recipients.'.'</em></p>');
+						self::set_gravitec_success_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> Successfully sent'.' a notification to '.$recipient_count.' recipients.'.'</em></p>');
 					} else {
-						$this->set_gravitec_success_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>There were no recipients. You likely have no subscribers.</em></p>');
+						self::set_gravitec_success_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>There were no recipients. You likely have no subscribers.</em></p>');
 					}
 				}
 			}
@@ -913,7 +913,7 @@ class Gravitecnet_Admin {
 		return $response;
 	}
 	
-	public function set_gravitec_success_transient($value) {
+	public static function set_gravitec_success_transient($value) {
 		set_transient(
 			'gravitecnet_transient_success', 
 			'<div class="updated notice notice-success is-dismissible">
@@ -935,7 +935,7 @@ class Gravitecnet_Admin {
 		);
 	}
 	
-	public function remove_gravitec_push_on_post_action () {
+	public static function remove_gravitec_push_on_post_action () {
 		remove_action('rest_after_insert_post', array(__CLASS__, 'send_gravitec_notification_on_post'));
 		return;
 	}
