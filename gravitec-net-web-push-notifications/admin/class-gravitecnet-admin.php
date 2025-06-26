@@ -908,7 +908,24 @@ class Gravitecnet_Admin {
 			'body' => wp_json_encode( $request_body )
 		);
 
+		// Log the request being sent
+		error_log("\n[".date('Y-m-d H:i:s')."]: Gravitec API Request - URL: " . $url, 3, __DIR__ . '/error.log');
+		error_log("\n[".date('Y-m-d H:i:s')."]: Gravitec API Request Body: " . wp_json_encode($request_body), 3, __DIR__ . '/error.log');
+
 		$response = wp_remote_post( $url, $request );
+		
+		// Log the full response
+		if (is_wp_error($response)) {
+			error_log("\n[".date('Y-m-d H:i:s')."]: Gravitec API Error: " . $response->get_error_message(), 3, __DIR__ . '/error.log');
+		} else {
+			$status_code = wp_remote_retrieve_response_code($response);
+			$response_body = wp_remote_retrieve_body($response);
+			$response_headers = wp_remote_retrieve_headers($response);
+			
+			error_log("\n[".date('Y-m-d H:i:s')."]: Gravitec API Response Status: " . $status_code, 3, __DIR__ . '/error.log');
+			error_log("\n[".date('Y-m-d H:i:s')."]: Gravitec API Response Body: " . $response_body, 3, __DIR__ . '/error.log');
+			error_log("\n[".date('Y-m-d H:i:s')."]: Gravitec API Response Headers: " . wp_json_encode($response_headers), 3, __DIR__ . '/error.log');
+		}
 		
 		return $response;
 	}

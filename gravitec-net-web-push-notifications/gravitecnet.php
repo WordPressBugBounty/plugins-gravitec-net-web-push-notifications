@@ -16,7 +16,7 @@
  * Plugin Name:       Gravitec.net - Web Push Notifications
  * Plugin URI:        https://gravitec.net/
  * Description:       Automated web push notifications for newsmakers and publishers
- * Version:           2.9.13
+ * Version:           2.9.15
  * Author:            Gravitec.net
  * Author URI:        https://push.gravitec.net/
  * License:           GPL-2.0+
@@ -35,7 +35,14 @@ if ( ! defined( 'WPINC' ) ) {
  * Start at version 1.0.0 and use SemVer - https://semver.org
  * Rename this for your plugin and update it as you release new versions.
  */
-define( 'GRAVITECNET_VERSION', '2.9.13' );
+define( 'GRAVITECNET_VERSION', '2.9.15' );
+
+/**
+ * Database version for the plugin.
+ * This is used to track database schema changes and run migrations when needed.
+ */
+global $gravitecnet_db_version;
+$gravitecnet_db_version = '1.0';
 
 /**
  * For Gravitec developers: replace cdn domain to test domain.
@@ -83,22 +90,29 @@ require plugin_dir_path( __FILE__ ) . 'includes/class-gravitecnet.php';
  */
 
 function gravitecnet_abandoned_cart_table(){
+	global $gravitecnet_db_version;
+
 	if( class_exists( 'woocommerce' ) ){
-		global $wpdb;
-		$charset_collate = $wpdb->get_charset_collate();
-		$query = "CREATE TABLE IF NOT EXISTS " . $wpdb->prefix . "gravitecnet_abandoned_cart (
-				`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-				`date_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				`regID` varchar(500) CHARACTER SET latin1 DEFAULT NULL,
-				`prod_count` TINYINT(4) DEFAULT NULL,
-				`prod_id` BIGINT(20)  DEFAULT NULL,
-				`cart_total` varchar(20) CHARACTER SET latin1 DEFAULT NULL,
-				PRIMARY KEY  (`id`),
-				UNIQUE(`regID`)
-				) $charset_collate; ";
-				
-		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
-		dbDelta( $query );
+		$installed_ver = get_option( 'gravitecnet_db_version' );
+		if ( $installed_ver != $gravitecnet_db_version ) {
+			global $wpdb;
+			$charset_collate = $wpdb->get_charset_collate();
+			$query = "CREATE TABLE IF NOT EXISTS " . $wpdb->prefix . "gravitecnet_abandoned_cart (
+					`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+					`date_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					`regID` varchar(500) CHARACTER SET latin1 DEFAULT NULL,
+					`prod_count` TINYINT(4) DEFAULT NULL,
+					`prod_id` BIGINT(20)  DEFAULT NULL,
+					`cart_total` varchar(20) CHARACTER SET latin1 DEFAULT NULL,
+					PRIMARY KEY  (`id`),
+					UNIQUE(`regID`)
+					) $charset_collate; ";
+
+			require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+			dbDelta( $query );
+
+			update_option( 'gravitecnet_db_version', $gravitecnet_db_version );
+		}
 	}	
 }
 
