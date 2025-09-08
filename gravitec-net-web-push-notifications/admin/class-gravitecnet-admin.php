@@ -466,7 +466,7 @@ class Gravitecnet_Admin {
 		$response = self::send_gravitecnet_api($gravitecnet_push_url, $request_body);
 		
 		if (is_null($response)) {
-				$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a problem sending your push notification.</em></p>');
+				self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a problem sending your push notification.</em></p>');
 				return;
         	}
 			
@@ -488,24 +488,24 @@ class Gravitecnet_Admin {
 			if ($status !== 200) {
 				if ($status !== 0) {
 					if ($status === 403) {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['error_message'] . '</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['error_message'] . '</em></p>');
 					}
 					else if ($status === 410) {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['description'] . '</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['description'] . '</em></p>');
 					}
 					else if ($status === 422) {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['errorDescription'] . '</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['errorDescription'] . '</em></p>');
 					}
 					else if ($status === 500) {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] Internal server error</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] Internal server error</em></p>');
 					}
 					else {
-						$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a '.$status.' error sending your notification.</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a '.$status.' error sending your notification.</em></p>');
 					}
 				} 
 				else {
 					// A 0 HTTP status code means the connection couldn't be established
-					$this->set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was an error establishing a network connection. Please make sure outgoing network connections from cURL are allowed.</em></p>');
+					self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was an error establishing a network connection. Please make sure outgoing network connections from cURL are allowed.</em></p>');
 				}
 			} else {
 				if (!empty($response)) {
@@ -558,7 +558,7 @@ class Gravitecnet_Admin {
 	
 	public function create_woo_product_notification_box () {
 		global $post;
-		if( !class_exists( 'woocommerce' ) || $post->post_status !== 'publish' || $post->post_type !== 'product') return;
+		if( !class_exists( 'woocommerce' )|| !$post || $post->post_status !== 'publish' || $post->post_type !== 'product') return;
 		add_action( 'woocommerce_product_options_general_product_data', array($this, 'woo_box_fileds') );
 	}
 	
@@ -822,7 +822,7 @@ class Gravitecnet_Admin {
 			if ($status !== 200) {
 				if ($status !== 0) {
 					if ($status === 403) {
-						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['error_message'] . '</em></p>');
+						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['errorMessage'] . '</em></p>');
 					}
 					else if ($status === 410) {
 						self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em>[' . $status . '] ' . $response_body['description'] . '</em></p>');
@@ -942,9 +942,9 @@ class Gravitecnet_Admin {
 		);
 	}
 	
-	public function set_gravitec_error_transient($value) {
+	public static function set_gravitec_error_transient($value) {
 		set_transient(
-			'gravitecnet_transient_success', 
+			'gravitecnet_transient_error', 
 			'<div class="error notice">'
 		  		. $value .
 		  	'</div>',
