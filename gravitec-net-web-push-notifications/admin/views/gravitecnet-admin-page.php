@@ -391,7 +391,7 @@ $DEACTIVATE_BUTTON_ID = 'gravitecnet_deactivate_button';
 					<hr/>
 					<div class="grv-input-field grv-text-input">
 						<label>Target URL</label>
-						<input type="url" value="<?php echo esc_url( $gravitecnet_settings->get_woo_sale_price_redirect_url() ); ?>" placeholder='Target URL' name="<?php echo esc_attr( $gravitecnet_settings->get_woo_sale_price_redirect_url_field_name() ); ?>" required>
+						<input type="text" value="<?php echo esc_url( $gravitecnet_settings->get_woo_sale_price_redirect_url() ); ?>" placeholder='Target URL' name="<?php echo esc_attr( $gravitecnet_settings->get_woo_sale_price_redirect_url_field_name() ); ?>" required>
 					</div>
 					<hr/>
 					<input name='which-form' value='woocommerce-sale-price' style='display:none'/>

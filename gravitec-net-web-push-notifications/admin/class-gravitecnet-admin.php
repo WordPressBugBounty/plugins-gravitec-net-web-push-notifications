@@ -32,7 +32,11 @@ function gravitecnet_load_javascript()
     if ($post) {
         wp_register_script('notice_script', plugins_url('notice.js', __FILE__), array('jquery'), '1.1', true);
         wp_enqueue_script('notice_script');
-        wp_localize_script('notice_script', 'ajax_object', array('ajax_url' => admin_url('admin-ajax.php'), 'post_id' => $post->ID));
+        wp_localize_script('notice_script', 'ajax_object', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'post_id' => $post->ID,
+            'nonce' => wp_create_nonce('gravitecnet_show_notice_' . $post->ID)
+        ));
     }
 }
 
@@ -40,38 +44,53 @@ add_action('wp_ajax_show_notice', 'gravitecnet_show_notice');
 
 function gravitecnet_show_notice ()
 {
+    // Validate and sanitize post_id
     $post_id = isset($_GET['post_id']) ? 
-            (filter_var($_GET['post_id'], FILTER_SANITIZE_NUMBER_INT))
-            : '';
+            absint($_GET['post_id'])
+            : 0;
     
-    if (is_null($post_id)) {
-        $data = array('error' => 'could not get post id');
-    } else {
-        $recipients = get_post_meta($post_id, 'recipients');
-        if ($recipients && is_array($recipients)) {
-            $recipients = $recipients[0];
-        }
-
-        $status = get_post_meta($post_id, 'status');
-        if ($status && is_array($status)) {
-            $status = $status[0];
-        }
-
-        $response_body = get_post_meta($post_id, 'response_body');
-        if ($response_body && is_array($response_body)) {
-            $response_body = $response_body[0];
-        }
-
-        // reset meta
-        delete_post_meta($post_id, 'status');
-        delete_post_meta($post_id, 'recipients');
-        delete_post_meta($post_id, 'response_body');
-
-        $data = array('recipients' => $recipients, 'status_code' => $status, 'response_body' => $response_body);
+    // Verify nonce
+    if (!isset($_GET['nonce']) || !wp_verify_nonce($_GET['nonce'], 'gravitecnet_show_notice_' . $post_id)) {
+        wp_send_json_error(array('error' => 'Invalid security token'), 403);
+        exit;
     }
+    
+    // Check if post_id is valid
+    if (empty($post_id)) {
+        wp_send_json_error(array('error' => 'Invalid post ID'), 400);
+        exit;
+    }
+    
+    // Verify the post exists
+    $post = get_post($post_id);
+    if (!$post) {
+        wp_send_json_error(array('error' => 'Post not found'), 404);
+        exit;
+    }
+    
+    // Check if current user can edit this post
+    if (!current_user_can('edit_post', $post_id)) {
+        wp_send_json_error(array('error' => 'You do not have permission to access this post'), 403);
+        exit;
+    }
+    
+    // Retrieve and sanitize meta data
+    $recipients = get_post_meta($post_id, 'recipients', true);
+    $status = get_post_meta($post_id, 'status', true);
+    $response_body = get_post_meta($post_id, 'response_body', true);
 
-    echo wp_json_encode($data);
+    // Reset meta
+    delete_post_meta($post_id, 'status');
+    delete_post_meta($post_id, 'recipients');
+    delete_post_meta($post_id, 'response_body');
 
+    $data = array(
+        'recipients' => $recipients ? $recipients : '',
+        'status_code' => $status ? $status : '',
+        'response_body' => $response_body ? $response_body : ''
+    );
+
+    wp_send_json_success($data);
     exit;
 }
 
@@ -356,6 +375,11 @@ class Gravitecnet_Admin {
 		if( defined( 'REST_REQUEST' ) && REST_REQUEST ) return;
 		if( $post->post_type !== 'product' || !class_exists( 'woocommerce' )) return;
 		
+		// Check user permissions
+		if (!current_user_can('edit_post', $post->ID)) {
+			return;
+		}
+		
 		$gravitecnet_settings = new Gravitecnet_Settings();
 		
 		$wooCurrency 			= get_option('woocommerce_currency');
@@ -363,8 +387,8 @@ class Gravitecnet_Admin {
 		$product 				= wc_get_product ( $post->ID );
 		
 		$old_price 	= $product->get_regular_price() . ' ' .  $wooCurrency;
-		$new_price 	= filter_var($_POST['_regular_price'], FILTER_SANITIZE_NUMBER_INT) . ' ' .  $wooCurrency;
-		$sale_price = filter_var($_POST['_sale_price'], FILTER_SANITIZE_NUMBER_INT) . ' ' .  $wooCurrency;
+		$new_price 	= isset($_POST['_regular_price']) ? filter_var($_POST['_regular_price'], FILTER_SANITIZE_NUMBER_INT) . ' ' .  $wooCurrency : '';
+		$sale_price = isset($_POST['_sale_price']) ? filter_var($_POST['_sale_price'], FILTER_SANITIZE_NUMBER_INT) . ' ' .  $wooCurrency : '';
 		
 		$url = '';
 		$title = '';
@@ -395,7 +419,7 @@ class Gravitecnet_Admin {
 			}
 		}
 		
-		if ( null !== $_POST['gravitecnet_price_drop'] && $product->get_regular_price() > $_POST['_regular_price']) {
+		if ( isset($_POST['gravitecnet_price_drop']) && isset($_POST['_regular_price']) && $product->get_regular_price() > $_POST['_regular_price']) {
 			$title_template = $post->post_title;
 			$message_template = 'New price: ' . '{new_price}';
 			$url_template = get_the_permalink();
@@ -619,7 +643,8 @@ class Gravitecnet_Admin {
 		global $wpdb;
 		global $woocommerce;
 		
-		if( empty($_COOKIE['gravitecnet_regID']) ) return;
+		// Validate cookie exists and is properly formatted
+		if( empty($_COOKIE['gravitecnet_regID']) || !preg_match('/^[a-zA-Z0-9-]+$/', $_COOKIE['gravitecnet_regID']) ) return;
 
 		if( ! $woocommerce->cart->is_empty( ) ){
 			$products		= $woocommerce->cart->get_cart_contents();
@@ -697,7 +722,7 @@ class Gravitecnet_Admin {
 		}
 
 		?>
-
+		<?php wp_nonce_field('gravitec_meta_box_nonce_action', 'gravitec_meta_box_nonce'); ?>
 		<input type="hidden" name="gravitec_meta_box_implemented" value="true"></input>
 		<div id="gravitec_send_checkbox">
 			<label>
@@ -744,6 +769,16 @@ class Gravitecnet_Admin {
 	public static function send_gravitec_notification_on_post ($post) {
 		try {
 			$was_posted = !empty($_POST);
+
+			// Verify nonce if data is posted
+			if ($was_posted && (!isset($_POST['gravitec_meta_box_nonce']) || !wp_verify_nonce($_POST['gravitec_meta_box_nonce'], 'gravitec_meta_box_nonce_action'))) {
+				return;
+			}
+
+			// Check user permissions
+			if (!current_user_can('edit_post', $post->ID)) {
+				return;
+			}
 
 			$gravitecnet_settings = new Gravitecnet_Settings();
 
@@ -803,6 +838,12 @@ class Gravitecnet_Admin {
 				self::remove_gravitec_push_on_post_action();
 				return;
         	}
+			
+			if (is_wp_error($response)) {
+				self::set_gravitec_error_transient('<p><strong>Gravitec.net - Web Push Notifications: </strong><em> There was a problem sending your push notification: ' . esc_html($response->get_error_message()) . '</em></p>');
+				self::remove_gravitec_push_on_post_action();
+				return;
+			}
 			
 			if ($gravitecnet_settings->get_status_after_sending() !== 'true') {self::remove_gravitec_push_on_post_action(); return;}
 			

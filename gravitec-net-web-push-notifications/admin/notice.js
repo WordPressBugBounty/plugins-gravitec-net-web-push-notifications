@@ -24,7 +24,7 @@ function notice() {
 
     const post = editor.getCurrentPost();
 
-    if(!post || post === {}){
+    if(!post || Object.keys(post).length === 0){
       return;
     }
 
@@ -48,11 +48,19 @@ function notice() {
   const get_metadata = () => {
     const data = {
       action: "show_notice",
-      post_id: state.post_id
+      post_id: state.post_id,
+      nonce: ajax_object.nonce
     };
 
     jQuery.get(ajax_object.ajax_url, data, function(response) {
-      response = JSON.parse(response);
+      // Check if response is already an object (from wp_send_json_success)
+      if (typeof response === 'string') {
+        response = JSON.parse(response);
+      }
+      // Handle WordPress REST API response format
+      if (response.success !== undefined) {
+        response = response.data;
+      }
 
 	  const recipients = response.recipients;
 	  const status_code = response.status_code;
